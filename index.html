@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>からくり箱ログイン – 3D Cube Puzzle Login (Demo)</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: rgba(22, 27, 34, 0.85);
+    --accent: #4fd1c5;
+    --accent-2: #f6ad55;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --ok: #3fb950;
+    --err: #f85149;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%;
+    background: radial-gradient(circle at 30% 20%, #1a2330, var(--bg) 70%);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, system-ui, sans-serif;
+    overflow: hidden;
+  }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; }
+
+  .hud {
+    position: fixed; top: 16px; left: 16px; z-index: 10;
+    background: var(--panel);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 16px 18px;
+    max-width: 320px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+  }
+  .hud h1 { font-size: 16px; margin: 0 0 4px; letter-spacing: .02em; }
+  .hud .sub { color: var(--muted); font-size: 12px; margin: 0 0 12px; }
+
+  .steps { list-style: none; margin: 0; padding: 0; }
+  .steps li {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; padding: 6px 0; color: var(--muted);
+    transition: color .25s;
+  }
+  .steps li .dot {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 2px solid var(--muted);
+    display: grid; place-items: center;
+    font-size: 11px; flex: 0 0 auto;
+    transition: all .25s;
+  }
+  .steps li.active { color: var(--text); }
+  .steps li.active .dot { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 12px rgba(79,209,197,.5); }
+  .steps li.done { color: var(--text); }
+  .steps li.done .dot { background: var(--ok); border-color: var(--ok); color: #0e1116; }
+
+  .hint {
+    margin-top: 12px; font-size: 12px; color: var(--muted);
+    border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px;
+  }
+  .hint b { color: var(--accent-2); }
+
+  .btn {
+    margin-top: 12px; width: 100%;
+    background: transparent; color: var(--text);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 10px; padding: 8px; font-size: 13px; cursor: pointer;
+    transition: background .2s;
+  }
+  .btn:hover { background: rgba(255,255,255,0.06); }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--panel); border: 1px solid rgba(255,255,255,0.1);
+    padding: 10px 18px; border-radius: 999px; font-size: 13px;
+    opacity: 0; pointer-events: none; transition: all .3s; z-index: 20;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.err { border-color: var(--err); color: #ffb4ae; }
+
+  /* 成功オーバーレイ */
+  .overlay {
+    position: fixed; inset: 0; z-index: 30;
+    display: grid; place-items: center;
+    background: rgba(5, 8, 12, 0.7);
+    backdrop-filter: blur(6px);
+    opacity: 0; pointer-events: none; transition: opacity .5s;
+  }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+  .card {
+    background: var(--panel); border: 1px solid rgba(79,209,197,.4);
+    border-radius: 18px; padding: 32px 40px; text-align: center;
+    box-shadow: 0 0 60px rgba(79,209,197,.25);
+    transform: scale(.9); transition: transform .5s;
+  }
+  .overlay.show .card { transform: scale(1); }
+  .card .lock { font-size: 48px; margin-bottom: 8px; }
+  .card h2 { margin: 0 0 6px; font-size: 22px; }
+  .card p { margin: 0 0 4px; color: var(--muted); font-size: 13px; }
+  .card code {
+    display: inline-block; margin-top: 10px;
+    background: rgba(0,0,0,.4); padding: 6px 10px; border-radius: 8px;
+    font-size: 11px; color: var(--accent); word-break: break-all; max-width: 320px;
+  }
+  .footnote {
+    position: fixed; bottom: 10px; right: 14px; z-index: 10;
+    font-size: 11px; color: var(--muted); max-width: 300px; text-align: right;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div class="hud">
+  <h1>🔐 からくり箱ログイン</h1>
+  <p class="sub">正しい手順でパーツを開くと認証されます</p>
+  <ul class="steps" id="steps">
+    <li data-step="0"><span class="dot">1</span><span>右パネルをスライド</span></li>
+    <li data-step="1"><span class="dot">2</span><span>前バーを引き出す</span></li>
+    <li data-step="2"><span class="dot">3</span><span>天板をスライド</span></li>
+    <li data-step="3"><span class="dot">4</span><span>中央キーを引き上げる</span></li>
+  </ul>
+  <div class="hint">
+    光っている<b>ハンドル(発光パーツ)</b>をクリック。順番を間違えると最初に戻ります。ドラッグで視点回転。
+  </div>
+  <button class="btn" id="reset">最初からやり直す</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="overlay" id="overlay">
+  <div class="card">
+    <div class="lock">🔓</div>
+    <h2>認証成功</h2>
+    <p>からくり箱を正しく開きました。ログインします。</p>
+    <p style="color:var(--accent-2)">solution → hash をサーバーに送信して照合する想定</p>
+    <code id="hash"></code>
+  </div>
+</div>
+
+<div class="footnote">
+  ※デモ: 解錠判定はクライアント側。実運用では「解いた状態のハッシュ」を<br>サーバーで照合し、多要素認証(MFA)の1要素として使う設計が安全です。
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ---------- シーン基本設定 ----------
+const app = document.getElementById('app');
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x0e1116, 0.06);
+
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(5, 4.5, 6);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+app.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.minDistance = 4;
+controls.maxDistance = 14;
+controls.target.set(0, 0.3, 0);
+
+// ---------- ライト ----------
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const key = new THREE.DirectionalLight(0xffffff, 1.4);
+key.position.set(5, 8, 5);
+scene.add(key);
+const rim = new THREE.PointLight(0x4fd1c5, 0.8, 30);
+rim.position.set(-4, 2, -3);
+scene.add(rim);
+
+// 床
+const floor = new THREE.Mesh(
+  new THREE.CircleGeometry(9, 64),
+  new THREE.MeshStandardMaterial({ color: 0x11161d, roughness: 0.9, metalness: 0.1 })
+);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = -1.55;
+scene.add(floor);
+
+// ---------- 木箱マテリアル ----------
+const woodMat = () => new THREE.MeshStandardMaterial({
+  color: 0x8b5a2b, roughness: 0.65, metalness: 0.05
+});
+const woodDark = () => new THREE.MeshStandardMaterial({
+  color: 0x6b4423, roughness: 0.7, metalness: 0.05
+});
+
+// 箱の本体（動かないコア）
+const boxGroup = new THREE.Group();
+scene.add(boxGroup);
+
+const core = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.4, 2.4), woodDark());
+boxGroup.add(core);
+
+// エッジの装飾
+const edges = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(2.42, 2.42, 2.42)),
+  new THREE.LineBasicMaterial({ color: 0x3a2817 })
+);
+boxGroup.add(edges);
+
+// ---------- 可動パーツ定義 ----------
+// 各ステップ: mesh, 開く方向(axis), 開く量(dist)
+const parts = [];
+
+function makePart({ size, pos, axis, dist, color }) {
+  const geo = new THREE.BoxGeometry(size[0], size[1], size[2]);
+  const mat = woodMat();
+  mat.color.set(color);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(pos[0], pos[1], pos[2]);
+  boxGroup.add(mesh);
+
+  const p = {
+    mesh,
+    closedPos: mesh.position.clone(),
+    openPos: mesh.position.clone().add(new THREE.Vector3(...axis).multiplyScalar(dist)),
+    opened: false,
+    baseColor: new THREE.Color(color),
+  };
+  parts.push(p);
+  return p;
+}
+
+// ステップ1: 右パネル（+X方向へスライド）
+makePart({ size: [0.25, 2.2, 2.2], pos: [1.22, 0, 0], axis: [1, 0, 0], dist: 1.6, color: 0x9c6b3a });
+// ステップ2: 前バー（+Z方向へ引き出す）
+makePart({ size: [2.0, 0.4, 0.25], pos: [0, -0.9, 1.22], axis: [0, 0, 1], dist: 1.4, color: 0xa87642 });
+// ステップ3: 天板（-Z方向へスライド）
+makePart({ size: [2.2, 0.25, 2.2], pos: [0, 1.22, 0], axis: [0, 0, -1], dist: 1.8, color: 0x9c6b3a });
+// ステップ4: 中央キー（+Y方向へ引き上げる）
+makePart({ size: [0.6, 0.6, 0.6], pos: [0, 0.4, 0], axis: [0, 1, 0], dist: 1.6, color: 0xf6ad55 });
+
+// ---------- 状態管理 ----------
+let currentStep = 0;               // 次に開くべきステップ
+const TOTAL = parts.length;
+
+const stepEls = [...document.querySelectorAll('.steps li')];
+const toast = document.getElementById('toast');
+const overlay = document.getElementById('overlay');
+
+function refreshUI() {
+  stepEls.forEach((el, i) => {
+    el.classList.toggle('done', i < currentStep);
+    el.classList.toggle('active', i === currentStep);
+  });
+}
+refreshUI();
+
+let toastTimer;
+function showToast(msg, isErr = false) {
+  clearTimeout(toastTimer);
+  toast.textContent = msg;
+  toast.classList.toggle('err', isErr);
+  toast.classList.add('show');
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 1600);
+}
+
+// ---------- 発光ハイライト（次に開くパーツ） ----------
+let pulse = 0;
+function updateHighlight(dt) {
+  pulse += dt * 3;
+  parts.forEach((p, i) => {
+    if (i === currentStep && !p.opened && currentStep < TOTAL) {
+      const g = 0.3 + Math.abs(Math.sin(pulse)) * 0.5;
+      p.mesh.material.emissive = new THREE.Color(0x4fd1c5);
+      p.mesh.material.emissiveIntensity = g;
+    } else {
+      p.mesh.material.emissiveIntensity = 0;
+    }
+  });
+}
+
+// ---------- クリック（レイキャスト） ----------
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+let downPos = null;
+
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  downPos = { x: e.clientX, y: e.clientY };
+});
+renderer.domElement.addEventListener('pointerup', (e) => {
+  // ドラッグ（視点回転）とクリックを区別
+  if (!downPos) return;
+  const moved = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
+  downPos = null;
+  if (moved > 6) return;
+
+  pointer.x = (e.clientX / innerWidth) * 2 - 1;
+  pointer.y = -(e.clientY / innerHeight) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(parts.map(p => p.mesh));
+  if (!hits.length) return;
+
+  const hitMesh = hits[0].object;
+  const idx = parts.findIndex(p => p.mesh === hitMesh);
+  handlePartClick(idx);
+});
+
+// ---------- 開閉ロジック（からくりの手順ゲート） ----------
+const animations = [];
+function tweenTo(part, target) {
+  animations.push({ part, from: part.mesh.position.clone(), to: target.clone(), t: 0, dur: 0.6 });
+}
+
+function handlePartClick(idx) {
+  const part = parts[idx];
+  if (part.opened) { showToast('このパーツはもう開いています'); return; }
+
+  if (idx === currentStep) {
+    // 正しい手順
+    part.opened = true;
+    tweenTo(part, part.openPos);
+    currentStep++;
+    refreshUI();
+    if (currentStep >= TOTAL) {
+      setTimeout(unlock, 700);
+    } else {
+      showToast(`ステップ ${idx + 1} 解錠`);
+    }
+  } else {
+    // 手順ミス → シェイクして全リセット
+    showToast('手順が違います。最初に戻ります', true);
+    shake();
+    setTimeout(resetPuzzle, 500);
+  }
+}
+
+// ---------- シェイク演出 ----------
+let shakeT = 0;
+function shake() { shakeT = 0.4; }
+
+// ---------- リセット ----------
+function resetPuzzle() {
+  parts.forEach(p => {
+    p.opened = false;
+    tweenTo(p, p.closedPos);
+  });
+  currentStep = 0;
+  refreshUI();
+  overlay.classList.remove('show');
+}
+document.getElementById('reset').addEventListener('click', resetPuzzle);
+
+// ---------- 解錠成功 ----------
+async function unlock() {
+  // 「解いた状態」を文字列化 → ハッシュ化（サーバー照合の想定）
+  const solution = parts.map((p, i) => `${i}:opened`).join('|');
+  const hash = await sha256(solution + '|karakuri-v1');
+  document.getElementById('hash').textContent = 'solution_hash: ' + hash.slice(0, 32) + '…';
+  overlay.classList.add('show');
+  showToast('🔓 認証成功');
+}
+
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ---------- アニメーションループ ----------
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  // スライドtween
+  for (let i = animations.length - 1; i >= 0; i--) {
+    const a = animations[i];
+    a.t += dt / a.dur;
+    const k = a.t >= 1 ? 1 : easeOutCubic(a.t);
+    a.part.mesh.position.lerpVectors(a.from, a.to, k);
+    if (a.t >= 1) animations.splice(i, 1);
+  }
+
+  // シェイク
+  if (shakeT > 0) {
+    shakeT -= dt;
+    boxGroup.position.x = Math.sin(shakeT * 60) * 0.06;
+  } else {
+    boxGroup.position.x = 0;
+  }
+
+  updateHighlight(dt);
+  controls.update();
+  renderer.render(scene, camera);
+}
+function easeOutCubic(x) { return 1 - Math.pow(1 - x, 3); }
+animate();
+
+// ---------- リサイズ ----------
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
