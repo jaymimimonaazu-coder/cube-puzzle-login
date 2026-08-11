@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080b0d">
+  <title>KARAKURI / Secure Object</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f0eee8;
+      --muted: #8d9291;
+      --line: rgba(255,255,255,.11);
+      --glass: rgba(15,18,19,.76);
+      --lime: #c5ff6f;
+      --amber: #e0aa62;
+      --danger: #ff775f;
+    }
+    * { box-sizing: border-box }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden }
+    body {
+      background:
+        radial-gradient(circle at 70% 40%, rgba(103,78,45,.15), transparent 32%),
+        radial-gradient(circle at 25% 80%, rgba(113,154,123,.09), transparent 34%),
+        #080b0d;
+      color: var(--ink);
+      font-family: Inter, "Noto Sans JP", "Yu Gothic UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+    }
+    button { font: inherit }
+    #app, canvas { position: fixed; inset: 0; display: block }
+    .grain {
+      position: fixed; inset: 0; z-index: 2; pointer-events: none; opacity: .055;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.7'/%3E%3C/svg%3E");
+    }
+    .topbar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 5;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 26px 32px; pointer-events: none;
+    }
+    .brand { display: flex; align-items: center; gap: 13px }
+    .brand-mark {
+      width: 22px; height: 22px; border: 1px solid rgba(255,255,255,.56);
+      transform: rotate(45deg); position: relative;
+    }
+    .brand-mark::after {
+      content: ""; position: absolute; inset: 5px; border: 1px solid var(--lime);
+    }
+    .brand strong { display: block; font-size: 12px; letter-spacing: .24em; font-weight: 600 }
+    .brand small { display: block; margin-top: 4px; color: var(--muted); font: 9px/1 monospace; letter-spacing: .16em }
+    .session {
+      color: var(--muted); font: 10px/1.4 ui-monospace, monospace; text-align: right; letter-spacing: .08em;
+    }
+    .session i { display: inline-block; width: 5px; height: 5px; margin-right: 8px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 10px var(--lime) }
+
+    .panel {
+      position: fixed; left: 32px; bottom: 32px; z-index: 5; width: min(350px, calc(100vw - 64px));
+      padding: 20px; border: 1px solid var(--line); border-radius: 18px;
+      background: linear-gradient(145deg, rgba(25,28,28,.83), rgba(10,13,14,.7));
+      backdrop-filter: blur(22px) saturate(130%);
+      box-shadow: 0 24px 80px rgba(0,0,0,.35);
+    }
+    .eyebrow { color: var(--amber); font: 9px/1 ui-monospace, monospace; letter-spacing: .22em; text-transform: uppercase }
+    .panel h1 { margin: 10px 0 8px; max-width: 270px; font: 500 21px/1.4 "Noto Sans JP", sans-serif; letter-spacing: .02em }
+    .panel p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.8 }
+    .input-legend { display: flex; align-items: center; gap: 12px; margin-top: 18px }
+    .mouse {
+      width: 24px; height: 34px; border: 1px solid rgba(255,255,255,.35); border-radius: 12px; position: relative;
+    }
+    .mouse::before { content: ""; position: absolute; top: 5px; left: 50%; width: 2px; height: 6px; background: var(--lime) }
+    .plus { color: #626766 }
+    .keys { display: flex; gap: 4px }
+    kbd {
+      min-width: 26px; height: 26px; display: grid; place-items: center;
+      border: 1px solid rgba(255,255,255,.16); border-bottom-color: rgba(255,255,255,.3);
+      border-radius: 6px; background: rgba(255,255,255,.05);
+      color: #b8bcba; font: 10px/1 ui-monospace, monospace;
+      box-shadow: 0 2px 0 rgba(0,0,0,.45);
+    }
+    kbd.down { color: #101410; background: var(--lime); border-color: var(--lime); transform: translateY(2px); box-shadow: none }
+    .progress-row { display: flex; align-items: center; gap: 12px; margin-top: 18px }
+    .progress { height: 2px; flex: 1; background: rgba(255,255,255,.09); overflow: hidden }
+    .progress > i { display: block; height: 100%; width: 0; background: var(--lime); box-shadow: 0 0 8px var(--lime); transition: width .55s cubic-bezier(.2,.8,.2,1) }
+    #progressLabel { min-width: 46px; color: var(--muted); font: 9px/1 ui-monospace, monospace; letter-spacing: .12em }
+    .reset {
+      margin-left: auto; padding: 0; border: 0; color: #777d7a; background: none; cursor: pointer;
+      font: 9px/1 ui-monospace, monospace; letter-spacing: .14em; pointer-events: auto;
+    }
+    .reset:hover { color: var(--ink) }
+
+    .drag-readout {
+      position: fixed; z-index: 7; pointer-events: none; opacity: 0;
+      transform: translate(-50%, -50%) scale(.9); transition: opacity .15s, transform .15s;
+    }
+    .drag-readout.show { opacity: 1; transform: translate(-50%, -50%) scale(1) }
+    .drag-ring { width: 66px; height: 66px; border: 1px solid rgba(197,255,111,.25); border-radius: 50%; position: relative }
+    .drag-ring::before, .drag-ring::after { content:""; position:absolute; background:rgba(197,255,111,.55) }
+    .drag-ring::before { width: 1px; height: 76px; left: 32px; top: -6px }
+    .drag-ring::after { height: 1px; width: 76px; top: 32px; left: -6px }
+    .drag-key {
+      position: absolute; inset: 18px; display: grid; place-items: center; border-radius: 8px;
+      color: var(--lime); background: rgba(8,11,13,.84); font: 12px/1 ui-monospace,monospace;
+    }
+    .drag-readout.valid .drag-key { color: #101410; background: var(--lime) }
+
+    .toast {
+      position: fixed; z-index: 8; left: 50%; top: 84px; padding: 10px 15px;
+      border: 1px solid var(--line); border-radius: 999px; background: rgba(12,15,16,.78);
+      backdrop-filter: blur(14px); color: #b9bdbb; font: 10px/1 ui-monospace, monospace;
+      letter-spacing: .1em; opacity: 0; transform: translate(-50%,-8px); transition: .25s; pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%,0) }
+    .toast.error { color: #ffc0b4; border-color: rgba(255,119,95,.38) }
+
+    .success {
+      position: fixed; inset: 0; z-index: 12; display: grid; place-items: center; padding: 24px;
+      background: rgba(5,7,8,.72); backdrop-filter: blur(18px); opacity: 0; pointer-events: none; transition: opacity .7s;
+    }
+    .success.show { opacity: 1; pointer-events: auto }
+    .success-card { width: min(440px, 100%); text-align: center }
+    .success-icon {
+      width: 68px; height: 68px; display: grid; place-items: center; margin: 0 auto 24px;
+      border: 1px solid rgba(197,255,111,.38); border-radius: 50%; color: var(--lime);
+      font-size: 24px; box-shadow: inset 0 0 30px rgba(197,255,111,.08), 0 0 50px rgba(197,255,111,.08);
+    }
+    .success h2 { margin: 0; font-size: 27px; font-weight: 450; letter-spacing: .08em }
+    .success p { color: var(--muted); font-size: 11px; line-height: 1.8 }
+    .token { margin-top: 20px; padding: 13px; border: 1px solid var(--line); border-radius: 10px; color: #767c79; font: 9px/1.5 ui-monospace,monospace; word-break: break-all }
+    .success button { margin-top: 22px; border: 0; border-bottom: 1px solid #777; padding: 6px 0; background: none; color: var(--ink); cursor: pointer; font-size: 11px }
+    .mobile-note { display: none }
+    @media (max-width: 640px) {
+      .topbar { padding: 20px }
+      .session { display: none }
+      .panel { left: 16px; bottom: 16px; width: calc(100vw - 32px); padding: 16px }
+      .panel h1 { font-size: 17px }
+      .mobile-note { display: block; margin-top: 10px; color: var(--amber) }
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div class="grain"></div>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <span><strong>KARAKURI</strong><small>SECURE OBJECT / 01</small></span>
+    </div>
+    <div class="session"><i></i>LOCAL CHALLENGE<br>SESSION 7B-42</div>
+  </header>
+
+  <section class="panel" aria-label="操作ガイド">
+    <div class="eyebrow">Physical gesture authentication</div>
+    <h1>継ぎ目を見つけ、鍵と動作を重ねる。</h1>
+    <p>立方体を観察してください。機構はクリックでは動きません。継ぎ目をドラッグしながら、登録されたキーを同時に保持します。</p>
+    <div class="input-legend">
+      <span class="mouse" aria-hidden="true"></span><span class="plus">＋</span>
+      <div class="keys" aria-label="使用キー"><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><kbd>F</kbd></div>
+    </div>
+    <p class="mobile-note">このデモはキーボード接続環境向けです。</p>
+    <div class="progress-row">
+      <div class="progress"><i id="progressBar"></i></div>
+      <span id="progressLabel">0 / 4</span>
+      <button class="reset" id="reset">RESET</button>
+    </div>
+  </section>
+
+  <div class="drag-readout" id="dragReadout"><div class="drag-ring"><span class="drag-key" id="dragKey">?</span></div></div>
+  <div class="toast" id="toast"></div>
+  <div class="success" id="success">
+    <div class="success-card">
+      <div class="success-icon">⌁</div>
+      <h2>IDENTITY VERIFIED</h2>
+      <p>登録された複合ジェスチャーと一致しました。<br>実運用では、この署名をサーバー側で照合します。</p>
+      <div class="token" id="token"></div>
+      <button id="again">もう一度試す</button>
+    </div>
+  </div>
+
+  <script type="importmap">
+    {"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+  </script>
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+    import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+
+    const $ = (q) => document.querySelector(q);
+    const app = $("#app");
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x080b0d, 8, 19);
+    const camera = new THREE.PerspectiveCamera(34, innerWidth / innerHeight, .1, 40);
+    camera.position.set(5.8, 4.2, 7.2);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
+    app.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = .055;
+    controls.enablePan = false;
+    controls.minDistance = 6;
+    controls.maxDistance = 11;
+    controls.target.set(.45, .2, 0);
+
+    scene.add(new THREE.HemisphereLight(0xe9f2ea, 0x15100b, 1.65));
+    const keyLight = new THREE.SpotLight(0xffe8c7, 105, 25, Math.PI / 5, .6, 1.4);
+    keyLight.position.set(5, 8, 5); keyLight.castShadow = true; keyLight.shadow.mapSize.set(1024,1024); scene.add(keyLight);
+    const rim = new THREE.PointLight(0x99d9b2, 22, 14); rim.position.set(-4, 1, -4); scene.add(rim);
+    const warm = new THREE.PointLight(0xd99a54, 15, 10); warm.position.set(4, -1, 2); scene.add(warm);
+
+    const floor = new THREE.Mesh(
+      new THREE.CircleGeometry(9, 96),
+      new THREE.MeshStandardMaterial({ color: 0x101313, roughness: .92, metalness: .04 })
+    );
+    floor.rotation.x = -Math.PI / 2; floor.position.y = -1.72; floor.receiveShadow = true; scene.add(floor);
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(2.2, 2.22, 96),
+      new THREE.MeshBasicMaterial({ color: 0x353b37, transparent: true, opacity: .45, side: THREE.DoubleSide })
+    );
+    ring.rotation.x = -Math.PI / 2; ring.position.y = -1.705; scene.add(ring);
+
+    const cube = new THREE.Group(); cube.rotation.y = -.12; scene.add(cube);
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x3b3025, roughness: .52, metalness: .16 });
+    const insetMat = new THREE.MeshStandardMaterial({ color: 0x171a18, roughness: .42, metalness: .62 });
+    const brassMat = new THREE.MeshStandardMaterial({ color: 0xb48348, roughness: .25, metalness: .82 });
+    const edgeMat = new THREE.MeshStandardMaterial({ color: 0x65513b, roughness: .36, metalness: .44 });
+
+    const body = new THREE.Mesh(new RoundedBoxGeometry(3.18, 3.18, 3.18, 6, .12), bodyMat);
+    body.castShadow = true; body.receiveShadow = true; cube.add(body);
+    const inner = new THREE.Mesh(new RoundedBoxGeometry(2.82, 2.82, 2.82, 4, .07), insetMat);
+    inner.scale.set(1.001,1.001,1.001); cube.add(inner);
+
+    // Decorative structural rails.
+    for (const y of [-1.48, 1.48]) for (const z of [-1.48, 1.48]) {
+      const rail = new THREE.Mesh(new RoundedBoxGeometry(3.02,.08,.08,2,.02), edgeMat);
+      rail.position.set(0,y,z); rail.castShadow = true; cube.add(rail);
+    }
+    for (const x of [-1.48, 1.48]) for (const z of [-1.48, 1.48]) {
+      const rail = new THREE.Mesh(new RoundedBoxGeometry(.08,3.02,.08,2,.02), edgeMat);
+      rail.position.set(x,0,z); rail.castShadow = true; cube.add(rail);
+    }
+    const screwGeo = new THREE.CylinderGeometry(.075,.075,.035,20);
+    for (const x of [-1.24,1.24]) for (const y of [-1.24,1.24]) {
+      const screw = new THREE.Mesh(screwGeo, brassMat);
+      screw.rotation.x = Math.PI/2; screw.position.set(x,y,1.59); cube.add(screw);
+      const slot = new THREE.Mesh(new THREE.BoxGeometry(.09,.015,.02), insetMat);
+      slot.position.set(x,y,1.614); slot.rotation.z = (x+y > 0 ? .45 : -.45); cube.add(slot);
+    }
+
+    const mechanisms = [];
+    function mechanism({ geometry, material, position, open, key, direction, name }) {
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.fromArray(position); mesh.castShadow = true; cube.add(mesh);
+      const entry = {
+        mesh, key, direction: new THREE.Vector2(...direction).normalize(), name,
+        closed: mesh.position.clone(), open: new THREE.Vector3(...open), solved: false
+      };
+      mesh.userData.mechanism = entry; mechanisms.push(entry); return entry;
+    }
+    mechanism({
+      geometry: new RoundedBoxGeometry(.22,2.42,2.42,5,.055), material: edgeMat,
+      position:[1.6,0,0], open:[2.4,0,0], key:"d", direction:[1,0], name:"SIDE CARRIAGE"
+    });
+    mechanism({
+      geometry: new RoundedBoxGeometry(1.62,.34,.16,4,.045), material: brassMat,
+      position:[0,-.83,1.61], open:[0,.05,1.61], key:"a", direction:[0,-1], name:"FRONT LATCH"
+    });
+    mechanism({
+      geometry: new RoundedBoxGeometry(2.55,.19,2.55,5,.05), material: edgeMat,
+      position:[0,1.6,0], open:[0,2.05,-.58], key:"f", direction:[-1,0], name:"CROWN PLATE"
+    });
+    const iris = mechanism({
+      geometry: new THREE.CylinderGeometry(.4,.4,.16,8), material: brassMat,
+      position:[0,.45,1.65], open:[0,.45,2.25], key:"s", direction:[0,1], name:"CORE KEY"
+    });
+    iris.mesh.rotation.x = Math.PI/2; iris.mesh.rotation.z = Math.PI/8;
+    const coreDot = new THREE.Mesh(new THREE.CylinderGeometry(.1,.1,.18,24), insetMat);
+    coreDot.rotation.x = Math.PI/2; coreDot.position.set(0,.45,1.68); cube.add(coreDot);
+
+    // Authentication secret: the gestures must occur in this order.
+    const secret = [0,1,2,3];
+    const keysDown = new Set();
+    let step = 0, active = null, dragStart = null, dragPoint = null;
+    const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
+    const readout = $("#dragReadout"), readoutKey = $("#dragKey");
+    const animations = [];
+
+    addEventListener("keydown", (e) => {
+      if ("asdf".includes(e.key.toLowerCase())) {
+        keysDown.add(e.key.toLowerCase());
+        document.querySelectorAll("kbd").forEach(k => k.classList.toggle("down", keysDown.has(k.textContent.toLowerCase())));
+        if (active) updateReadout();
+      }
+    });
+    addEventListener("keyup", (e) => {
+      keysDown.delete(e.key.toLowerCase());
+      document.querySelectorAll("kbd").forEach(k => k.classList.toggle("down", keysDown.has(k.textContent.toLowerCase())));
+      if (active) updateReadout();
+    });
+    addEventListener("blur", () => { keysDown.clear(); document.querySelectorAll("kbd").forEach(k => k.classList.remove("down")); });
+
+    function pick(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.set(((e.clientX-rect.left)/rect.width)*2-1, -((e.clientY-rect.top)/rect.height)*2+1);
+      raycaster.setFromCamera(pointer,camera);
+      return raycaster.intersectObjects(mechanisms.filter(m=>!m.solved).map(m=>m.mesh),false)[0]?.object.userData.mechanism;
+    }
+    renderer.domElement.addEventListener("pointerdown", (e) => {
+      const hit = pick(e); if (!hit) return;
+      active = hit; dragStart = new THREE.Vector2(e.clientX,e.clientY); dragPoint = dragStart.clone();
+      controls.enabled = false; renderer.domElement.setPointerCapture(e.pointerId);
+      readout.style.left = `${e.clientX}px`; readout.style.top = `${e.clientY}px`; readoutKey.textContent = "•";
+      readout.classList.add("show"); updateReadout();
+    });
+    renderer.domElement.addEventListener("pointermove", (e) => {
+      if (!active) return;
+      dragPoint.set(e.clientX,e.clientY);
+      readout.style.left = `${e.clientX}px`; readout.style.top = `${e.clientY}px`; updateReadout();
+    });
+    renderer.domElement.addEventListener("pointerup", finishGesture);
+    renderer.domElement.addEventListener("pointercancel", cancelGesture);
+
+    // 押下中の a/s/d/f。ちょうど1つだけ押されている場合のみキーが確定する。
+    function heldKey() {
+      const pressed = [...keysDown].filter(k => "asdf".includes(k));
+      return pressed.length === 1 ? pressed[0] : null;
+    }
+    function updateReadout() {
+      if (!active) return;
+      const pressed = heldKey();
+      readoutKey.textContent = pressed ? pressed.toUpperCase() : "•";
+      readout.classList.toggle("valid", pressed === active.key);
+    }
+    function finishGesture(e) {
+      if (!active) return;
+      const delta = dragPoint.clone().sub(dragStart);
+      const distance = delta.length();
+      const alignment = distance ? delta.normalize().dot(active.direction) : 0;
+      const valid = distance > 64 && alignment > .68 && heldKey() === active.key;
+      if (valid && mechanisms.indexOf(active) === secret[step]) solve(active);
+      else if (distance > 24) reject();
+      cancelGesture(e);
+    }
+    function cancelGesture(e) {
+      active = null; controls.enabled = true; readout.classList.remove("show","valid");
+      if (e?.pointerId != null && renderer.domElement.hasPointerCapture(e.pointerId)) renderer.domElement.releasePointerCapture(e.pointerId);
+    }
+    function solve(item) {
+      item.solved = true; step++;
+      animations.push({ item, from:item.mesh.position.clone(), to:item.open.clone(), t:0, duration:.75 });
+      $("#progressBar").style.width = `${step/secret.length*100}%`;
+      $("#progressLabel").textContent = `${step} / ${secret.length}`;
+      toast(`MECHANISM ${String(step).padStart(2,"0")} ACCEPTED`);
+      if (step === secret.length) setTimeout(unlock, 900);
+    }
+    function reject() {
+      toast("GESTURE SIGNATURE REJECTED", true);
+      cube.userData.shake = .32;
+    }
+    let toastTimer;
+    function toast(message,error=false) {
+      clearTimeout(toastTimer); const el=$("#toast"); el.textContent=message; el.classList.toggle("error",error); el.classList.add("show");
+      toastTimer=setTimeout(()=>el.classList.remove("show"),1500);
+    }
+    async function unlock() {
+      const raw = mechanisms.map(m=>`${m.name}:${m.key}`).join("|")+"|karakuri-v2";
+      const data = await crypto.subtle.digest("SHA-256",new TextEncoder().encode(raw));
+      const hash=[...new Uint8Array(data)].map(b=>b.toString(16).padStart(2,"0")).join("");
+      $("#token").textContent=`GESTURE PROOF / ${hash.slice(0,40).toUpperCase()}`;
+      $("#success").classList.add("show");
+    }
+    function reset() {
+      step=0; $("#progressBar").style.width="0";
+      $("#progressLabel").textContent=`0 / ${secret.length}`; $("#success").classList.remove("show");
+      keysDown.clear(); document.querySelectorAll("kbd").forEach(k=>k.classList.remove("down"));
+      mechanisms.forEach(item => {
+        item.solved=false;
+        animations.push({item,from:item.mesh.position.clone(),to:item.closed.clone(),t:0,duration:.65});
+      });
+    }
+    $("#reset").addEventListener("click",reset); $("#again").addEventListener("click",reset);
+
+    const clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt=Math.min(clock.getDelta(),.04);
+      for(let i=animations.length-1;i>=0;i--){
+        const a=animations[i]; a.t+=dt/a.duration; const x=Math.min(a.t,1); const eased=1-Math.pow(1-x,4);
+        a.item.mesh.position.lerpVectors(a.from,a.to,eased);
+        if(x===1) animations.splice(i,1);
+      }
+      if(cube.userData.shake>0){
+        cube.userData.shake-=dt; cube.position.x=Math.sin(cube.userData.shake*85)*.035;
+      } else cube.position.x+=(0-cube.position.x)*.2;
+      controls.update(); renderer.render(scene,camera);
+    }
+    animate();
+    addEventListener("resize",()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+  </script>
+</body>
+</html>
