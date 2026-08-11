@@ -328,9 +328,14 @@
     renderer.domElement.addEventListener("pointerup", finishGesture);
     renderer.domElement.addEventListener("pointercancel", cancelGesture);
 
+    // 押下中の a/s/d/f。ちょうど1つだけ押されている場合のみキーが確定する。
+    function heldKey() {
+      const pressed = [...keysDown].filter(k => "asdf".includes(k));
+      return pressed.length === 1 ? pressed[0] : null;
+    }
     function updateReadout() {
       if (!active) return;
-      const pressed = [...keysDown].find(k => "asdf".includes(k));
+      const pressed = heldKey();
       readoutKey.textContent = pressed ? pressed.toUpperCase() : "•";
       readout.classList.toggle("valid", pressed === active.key);
     }
@@ -339,7 +344,7 @@
       const delta = dragPoint.clone().sub(dragStart);
       const distance = delta.length();
       const alignment = distance ? delta.normalize().dot(active.direction) : 0;
-      const valid = distance > 64 && alignment > .68 && keysDown.has(active.key);
+      const valid = distance > 64 && alignment > .68 && heldKey() === active.key;
       if (valid && mechanisms.indexOf(active) === secret[step]) solve(active);
       else if (distance > 24) reject();
       cancelGesture(e);
@@ -373,7 +378,9 @@
       $("#success").classList.add("show");
     }
     function reset() {
-      step=0; $("#progressBar").style.width="0"; $("#progressLabel").textContent="0 / 4"; $("#success").classList.remove("show");
+      step=0; $("#progressBar").style.width="0";
+      $("#progressLabel").textContent=`0 / ${secret.length}`; $("#success").classList.remove("show");
+      keysDown.clear(); document.querySelectorAll("kbd").forEach(k=>k.classList.remove("down"));
       mechanisms.forEach(item => {
         item.solved=false;
         animations.push({item,from:item.mesh.position.clone(),to:item.closed.clone(),t:0,duration:.65});
