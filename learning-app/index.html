@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#4f46e5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>AI用語デイリーマスター</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  html, body { height: 100%; overscroll-behavior-y: contain; }
+  body { font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", system-ui, -apple-system, sans-serif; }
+
+  /* --- flip card --- */
+  .flip-scene { perspective: 1200px; }
+  .flip-card {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
+    transform-style: preserve-3d;
+  }
+  .flip-card.is-flipped { transform: rotateY(180deg); }
+  .flip-face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+  .flip-face-back { transform: rotateY(180deg); }
+
+  /* simple fade for view switching */
+  .view-fade { animation: viewFadeIn 0.25s ease-out; }
+  @keyframes viewFadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .tab-btn[data-active="true"] .tab-icon { transform: translateY(-2px); }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased">
+
+<div class="mx-auto flex min-h-screen w-full max-w-md flex-col bg-slate-50">
+
+  <!-- ===================== ヘッダー ===================== -->
+  <header class="sticky top-0 z-20 bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-600 px-5 pb-5 pt-[calc(env(safe-area-inset-top)+1.25rem)] text-white shadow-lg shadow-indigo-600/10">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-lg font-bold tracking-tight">AI用語デイリーマスター</h1>
+        <p class="mt-0.5 text-[11px] font-medium text-indigo-100">毎日3つ、AI・ITの基礎を積み上げる</p>
+      </div>
+      <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-xl backdrop-blur">
+        🤖
+      </div>
+    </div>
+
+    <div class="mt-4 flex items-center justify-between rounded-2xl bg-white/10 px-4 py-3 backdrop-blur">
+      <div>
+        <p class="text-[11px] font-medium text-indigo-100">今日の日付</p>
+        <p id="todayLabel" class="text-base font-bold leading-tight">-- 月 -- 日（-）</p>
+      </div>
+      <span id="dayBadge" class="rounded-full bg-white/20 px-3 py-1 text-xs font-semibold">読み込み中</span>
+    </div>
+  </header>
+
+  <!-- ===================== メインコンテンツ ===================== -->
+  <main class="flex-1 px-5 pb-28 pt-5">
+
+    <!-- ---------- 「今日の学習」タブ ---------- -->
+    <section id="panel-today" class="view-panel">
+
+      <!-- デモ用: 表示切替（平日/週末ビューを手動で確認するためのUI） -->
+      <div class="mb-4 flex items-center gap-2 rounded-2xl bg-slate-200/70 p-1 text-xs font-semibold text-slate-500">
+        <button type="button" data-mode="weekday" onclick="setDashboardMode('weekday')"
+          class="mode-btn flex-1 rounded-xl py-2 transition">平日ビュー</button>
+        <button type="button" data-mode="weekend" onclick="setDashboardMode('weekend')"
+          class="mode-btn flex-1 rounded-xl py-2 transition">週末ビュー</button>
+      </div>
+
+      <!-- ===== 平日（月〜金）用ダッシュボード ===== -->
+      <div id="dashboard-weekday" class="view-fade space-y-4">
+
+        <button type="button" onclick="fetchTodayWords()"
+          class="flex w-full items-center justify-center gap-2 rounded-2xl bg-indigo-600 py-3.5 text-sm font-bold text-white shadow-md shadow-indigo-600/25 transition active:scale-[0.98]">
+          <span>✨</span> 今日の3単語を取得
+        </button>
+
+        <p class="px-1 text-xs text-slate-400">今日の3単語（<span id="learnedCount">0</span>/3 覚えた）</p>
+
+        <div class="space-y-3" id="term-card-list">
+
+          <!-- 用語カード 1 -->
+          <article class="term-card rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/60" data-card-id="1">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <span class="inline-block rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-600">用語 1</span>
+                <h3 class="mt-1.5 truncate text-base font-bold text-slate-900">API</h3>
+              </div>
+              <button type="button" onclick="toggleLearned(this)"
+                class="learned-btn flex shrink-0 items-center gap-1 rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-500 transition active:scale-95">
+                <span class="check-icon">☐</span> 覚えた！
+              </button>
+            </div>
+            <dl class="mt-3 space-y-2 text-sm">
+              <div>
+                <dt class="text-[11px] font-bold text-slate-400">解説</dt>
+                <dd class="mt-0.5 leading-relaxed text-slate-600">異なるソフトウェア同士が情報をやり取りするための「窓口」となる仕組み。</dd>
+              </div>
+              <div>
+                <dt class="text-[11px] font-bold text-slate-400">日常生活・開発での例</dt>
+                <dd class="mt-0.5 leading-relaxed text-slate-600">天気アプリが気象庁のデータをAPI経由で取得して画面に表示する。</dd>
+              </div>
+            </dl>
+          </article>
+
+          <!-- 用語カード 2 -->
+          <article class="term-card rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/60" data-card-id="2">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <span class="inline-block rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-600">用語 2</span>
+                <h3 class="mt-1.5 truncate text-base font-bold text-slate-900">機械学習</h3>
+              </div>
+              <button type="button" onclick="toggleLearned(this)"
+                class="learned-btn flex shrink-0 items-center gap-1 rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-500 transition active:scale-95">
+                <span class="check-icon">☐</span> 覚えた！
+              </button>
+            </div>
+            <dl class="mt-3 space-y-2 text-sm">
+              <div>
+                <dt class="text-[11px] font-bold text-slate-400">解説</dt>
+                <dd class="mt-0.5 leading-relaxed text-slate-600">データからパターンを学習し、明示的なルールなしで予測や判断を行う技術。</dd>
+              </div>
+              <div>
+                <dt class="text-[11px] font-bold text-slate-400">日常生活・開発での例</dt>
+                <dd class="mt-0.5 leading-relaxed text-slate-600">動画配信サービスの「あなたへのおすすめ」表示や、迷惑メールの自動判定。</dd>
+              </div>
+            </dl>
+          </article>
+
+          <!-- 用語カード 3 -->
+          <article class="term-card rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/60" data-card-id="3">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <span class="inline-block rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-600">用語 3</span>
+                <h3 class="mt-1.5 truncate text-base font-bold text-slate-900">クラウドコンピューティング</h3>
+              </div>
+              <button type="button" onclick="toggleLearned(this)"
+                class="learned-btn flex shrink-0 items-center gap-1 rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-500 transition active:scale-95">
+                <span class="check-icon">☐</span> 覚えた！
+              </button>
+            </div>
+            <dl class="mt-3 space-y-2 text-sm">
+              <div>
+                <dt class="text-[11px] font-bold text-slate-400">解説</dt>
+                <dd class="mt-0.5 leading-relaxed text-slate-600">インターネット経由でサーバーやストレージなどを必要な分だけ利用できる仕組み。</dd>
+              </div>
+              <div>
+                <dt class="text-[11px] font-bold text-slate-400">日常生活・開発での例</dt>
+                <dd class="mt-0.5 leading-relaxed text-slate-600">スマホの写真をローカルでなくクラウドに保存し、どの端末からでも見られるようにする。</dd>
+              </div>
+            </dl>
+          </article>
+
+        </div>
+      </div>
+
+      <!-- ===== 週末（土・日）用ダッシュボード ===== -->
+      <div id="dashboard-weekend" class="view-fade hidden space-y-4">
+
+        <button type="button" onclick="startWeeklyQuiz()"
+          class="flex w-full items-center justify-center gap-2 rounded-2xl bg-violet-600 py-3.5 text-sm font-bold text-white shadow-md shadow-violet-600/25 transition active:scale-[0.98]">
+          <span>🧠</span> 今週のおさらいテストを始める
+        </button>
+
+        <div class="flex items-center justify-between px-1">
+          <p class="text-xs font-semibold text-slate-400">一問一答</p>
+          <p class="text-xs font-semibold text-slate-400"><span id="quizProgress">1</span> / <span id="quizTotal">3</span> 問</p>
+        </div>
+
+        <!-- 裏返しカード -->
+        <div class="flip-scene h-56" onclick="flipQuizCard()">
+          <div id="quizFlipCard" class="flip-card cursor-pointer">
+            <div class="flip-face flex flex-col items-center justify-center rounded-2xl border border-violet-200 bg-white p-6 text-center shadow-sm shadow-violet-200/60">
+              <span class="mb-3 rounded-full bg-violet-50 px-3 py-1 text-[11px] font-bold text-violet-600">用語</span>
+              <p id="quizTerm" class="text-2xl font-extrabold text-slate-900">ニューラルネットワーク</p>
+              <p class="mt-4 text-xs text-slate-400">タップして解説を見る 👆</p>
+            </div>
+            <div class="flip-face flip-face-back flex flex-col items-center justify-center rounded-2xl border border-violet-200 bg-violet-600 p-6 text-center text-white shadow-sm">
+              <span class="mb-3 rounded-full bg-white/20 px-3 py-1 text-[11px] font-bold">解説</span>
+              <p id="quizAnswer" class="text-sm leading-relaxed">人間の脳の神経細胞のつながりを模した、AIの学習モデルの基本構造。</p>
+              <p class="mt-4 text-xs text-violet-100">もう一度タップで表に戻る</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 pt-1">
+          <button type="button" onclick="answerQuiz(false)"
+            class="rounded-2xl border border-slate-300 bg-white py-3 text-sm font-bold text-slate-500 shadow-sm transition active:scale-[0.98]">
+            🔁 もう一度
+          </button>
+          <button type="button" onclick="answerQuiz(true)"
+            class="rounded-2xl bg-emerald-500 py-3 text-sm font-bold text-white shadow-md shadow-emerald-500/25 transition active:scale-[0.98]">
+            ✅ 正解
+          </button>
+        </div>
+
+        <p id="quizFeedback" class="min-h-[1rem] text-center text-xs font-semibold text-emerald-600"></p>
+      </div>
+
+    </section>
+
+    <!-- ---------- 「用語集」タブ ---------- -->
+    <section id="panel-glossary" class="view-panel hidden">
+      <div class="mb-4 flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 shadow-sm">
+        <span class="text-slate-400">🔍</span>
+        <input type="text" placeholder="用語を検索"
+          class="w-full border-none bg-transparent text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-0">
+      </div>
+
+      <div class="space-y-2">
+        <article class="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3.5 shadow-sm">
+          <div>
+            <h3 class="text-sm font-bold text-slate-900">API</h3>
+            <p class="mt-0.5 line-clamp-1 text-xs text-slate-400">異なるソフトウェア同士が情報をやり取りする窓口</p>
+          </div>
+          <span class="shrink-0 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-600">習得済み</span>
+        </article>
+        <article class="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3.5 shadow-sm">
+          <div>
+            <h3 class="text-sm font-bold text-slate-900">機械学習</h3>
+            <p class="mt-0.5 line-clamp-1 text-xs text-slate-400">データからパターンを学習し予測や判断を行う技術</p>
+          </div>
+          <span class="shrink-0 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-600">習得済み</span>
+        </article>
+        <article class="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3.5 shadow-sm">
+          <div>
+            <h3 class="text-sm font-bold text-slate-900">クラウドコンピューティング</h3>
+            <p class="mt-0.5 line-clamp-1 text-xs text-slate-400">ネット経由で計算資源を必要な分だけ使う仕組み</p>
+          </div>
+          <span class="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-400">学習中</span>
+        </article>
+        <article class="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3.5 shadow-sm">
+          <div>
+            <h3 class="text-sm font-bold text-slate-900">ニューラルネットワーク</h3>
+            <p class="mt-0.5 line-clamp-1 text-xs text-slate-400">脳の神経細胞のつながりを模したAIの基本構造</p>
+          </div>
+          <span class="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-400">未学習</span>
+        </article>
+      </div>
+    </section>
+
+    <!-- ---------- 「設定」タブ ---------- -->
+    <section id="panel-settings" class="view-panel hidden">
+      <div class="space-y-3">
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h3 class="mb-3 text-xs font-bold text-slate-400">学習</h3>
+          <div class="flex items-center justify-between py-2">
+            <span class="text-sm font-medium text-slate-700">毎日のリマインド通知</span>
+            <button type="button" onclick="this.classList.toggle('bg-indigo-600'); this.classList.toggle('bg-slate-200'); this.firstElementChild.classList.toggle('translate-x-5')"
+              class="relative h-6 w-11 rounded-full bg-indigo-600 transition">
+              <span class="absolute left-0.5 top-0.5 h-5 w-5 translate-x-5 rounded-full bg-white shadow transition-transform"></span>
+            </button>
+          </div>
+          <div class="flex items-center justify-between border-t border-slate-100 py-2 pt-3">
+            <span class="text-sm font-medium text-slate-700">1日の出題数</span>
+            <span class="text-sm font-bold text-indigo-600">3 単語</span>
+          </div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h3 class="mb-3 text-xs font-bold text-slate-400">アプリについて</h3>
+          <div class="flex items-center justify-between py-2">
+            <span class="text-sm font-medium text-slate-700">バージョン</span>
+            <span class="text-sm text-slate-400">0.1.0</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===================== ナビゲーションバー（下部固定） ===================== -->
+  <nav class="fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-md border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+    <div class="flex items-stretch justify-around">
+      <button type="button" data-active="true" data-panel="panel-today" onclick="switchTab(this)"
+        class="tab-btn flex flex-1 flex-col items-center gap-1 py-3 text-indigo-600">
+        <span class="tab-icon text-xl transition-transform">📚</span>
+        <span class="text-[11px] font-bold">今日の学習</span>
+      </button>
+      <button type="button" data-active="false" data-panel="panel-glossary" onclick="switchTab(this)"
+        class="tab-btn flex flex-1 flex-col items-center gap-1 py-3 text-slate-400">
+        <span class="tab-icon text-xl transition-transform">📖</span>
+        <span class="text-[11px] font-bold">用語集</span>
+      </button>
+      <button type="button" data-active="false" data-panel="panel-settings" onclick="switchTab(this)"
+        class="tab-btn flex flex-1 flex-col items-center gap-1 py-3 text-slate-400">
+        <span class="tab-icon text-xl transition-transform">⚙️</span>
+        <span class="text-[11px] font-bold">設定</span>
+      </button>
+    </div>
+  </nav>
+
+</div>
+
+<script>
+  /* ---------- 日付表示 & 平日/週末の初期判定 ---------- */
+  const DAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
+
+  function renderToday() {
+    const now = new Date();
+    const dayIndex = now.getDay();
+    document.getElementById('todayLabel').textContent =
+      `${now.getMonth() + 1}月${now.getDate()}日（${DAY_LABELS[dayIndex]}）`;
+    const isWeekend = dayIndex === 0 || dayIndex === 6;
+    document.getElementById('dayBadge').textContent = isWeekend ? '週末モード' : '平日モード';
+    setDashboardMode(isWeekend ? 'weekend' : 'weekday');
+  }
+
+  /* ---------- タブ切り替え（今日の学習 / 用語集 / 設定） ---------- */
+  function switchTab(btn) {
+    document.querySelectorAll('.tab-btn').forEach((b) => {
+      b.dataset.active = 'false';
+      b.classList.remove('text-indigo-600');
+      b.classList.add('text-slate-400');
+    });
+    btn.dataset.active = 'true';
+    btn.classList.add('text-indigo-600');
+    btn.classList.remove('text-slate-400');
+
+    document.querySelectorAll('.view-panel').forEach((panel) => panel.classList.add('hidden'));
+    const target = document.getElementById(btn.dataset.panel);
+    target.classList.remove('hidden');
+    target.classList.add('view-fade');
+  }
+
+  /* ---------- 平日/週末ダッシュボード切り替え ---------- */
+  function setDashboardMode(mode) {
+    const weekday = document.getElementById('dashboard-weekday');
+    const weekend = document.getElementById('dashboard-weekend');
+    const isWeekday = mode === 'weekday';
+    weekday.classList.toggle('hidden', !isWeekday);
+    weekend.classList.toggle('hidden', isWeekday);
+
+    document.querySelectorAll('.mode-btn').forEach((b) => {
+      const active = b.dataset.mode === mode;
+      b.classList.toggle('bg-white', active);
+      b.classList.toggle('text-indigo-600', active);
+      b.classList.toggle('shadow-sm', active);
+      b.classList.toggle('text-slate-500', !active);
+    });
+  }
+
+  /* ---------- 平日: 今日の3単語を取得（表示確認用のダミー動作） ---------- */
+  function fetchTodayWords() {
+    document.querySelectorAll('.term-card').forEach((card, i) => {
+      card.classList.remove('view-fade');
+      void card.offsetWidth;
+      card.style.animationDelay = `${i * 80}ms`;
+      card.classList.add('view-fade');
+    });
+  }
+
+  /* ---------- 平日: 覚えた！ボタン ---------- */
+  function toggleLearned(btn) {
+    const learned = btn.classList.toggle('bg-emerald-500');
+    btn.classList.toggle('border-emerald-500', learned);
+    btn.classList.toggle('text-white', learned);
+    btn.classList.toggle('border-slate-300', !learned);
+    btn.classList.toggle('text-slate-500', !learned);
+    btn.querySelector('.check-icon').textContent = learned ? '☑' : '☐';
+    updateLearnedCount();
+  }
+
+  function updateLearnedCount() {
+    const total = document.querySelectorAll('.learned-btn.bg-emerald-500').length;
+    document.getElementById('learnedCount').textContent = total;
+  }
+
+  /* ---------- 週末: 一問一答クイズ ---------- */
+  const quizData = [
+    { term: 'ニューラルネットワーク', answer: '人間の脳の神経細胞のつながりを模した、AIの学習モデルの基本構造。' },
+    { term: 'アルゴリズム', answer: '問題を解決するための手順を、明確なルールとして定めたもの。' },
+    { term: 'API', answer: '異なるソフトウェア同士が情報をやり取りするための窓口となる仕組み。' },
+  ];
+  let quizIndex = 0;
+
+  function renderQuiz() {
+    const q = quizData[quizIndex];
+    document.getElementById('quizTerm').textContent = q.term;
+    document.getElementById('quizAnswer').textContent = q.answer;
+    document.getElementById('quizProgress').textContent = quizIndex + 1;
+    document.getElementById('quizTotal').textContent = quizData.length;
+    document.getElementById('quizFlipCard').classList.remove('is-flipped');
+  }
+
+  function startWeeklyQuiz() {
+    quizIndex = 0;
+    document.getElementById('quizFeedback').textContent = '';
+    renderQuiz();
+  }
+
+  function flipQuizCard() {
+    document.getElementById('quizFlipCard').classList.toggle('is-flipped');
+  }
+
+  function answerQuiz(isCorrect) {
+    const feedback = document.getElementById('quizFeedback');
+    feedback.textContent = isCorrect ? '正解として記録しました！' : 'もう一度あとで出題します。';
+    feedback.classList.toggle('text-emerald-600', isCorrect);
+    feedback.classList.toggle('text-amber-500', !isCorrect);
+
+    quizIndex = (quizIndex + 1) % quizData.length;
+    setTimeout(renderQuiz, 400);
+  }
+
+  /* ---------- 初期化 ---------- */
+  renderToday();
+  renderQuiz();
+</script>
+
+</body>
+</html>
